@@ -1,658 +1,415 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
-import io
+import plotly.express as px
+import plotly.graph_objects as go
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
+from sklearn.metrics import accuracy_score
 from sklearn.preprocessing import LabelEncoder
+import numpy as np
 
-# ---------------------- 双语文本配置 ----------------------
-LANG_DICT = {
+LANG = {
     "zh": {
-        "app_title": "❤️ 心脏病预测数据集分析App",
-        "sidebar_nav": "📌 功能导航",
-        "modules": ["数据概览", "探索性分析（EDA）", "心脏病风险预测", "模型性能评估"],
-        "data_overview": "📊 数据基础信息",
-        "data_head": "数据前5行",
-        "data_stats": "数据集基本统计",
-        "data_info": "数据结构信息",
-        "target_dist": "目标变量分布",
-        "eda_title": "🔍 探索性数据分析（EDA）",
-        "eda_types": ["单变量分布", "特征相关性热力图", "特征与目标变量关联", "散点图分析", "小提琴图分析"],
-        "select_feat": "选择要分析的特征",
-        "cat_feat": "分类特征",
-        "num_feat": "数值特征",
-        "mean": "均值",
-        "corr_heatmap": "特征相关性热力图",
-        "target_corr": "特征与目标变量的关联",
-        "dist_compare": "分布对比",
-        "scatter_title": "双变量散点图（带回归线）",
-        "violin_title": "小提琴图（分布密度）",
-        "predict_title": "🔮 心脏病风险预测工具",
-        "input_info": "请输入以下健康信息（带 * 为必填项）",
-        "age": "* 年龄",
-        "height": "* 身高(cm)",
-        "weight": "* 体重(kg)",
-        "bmi": "BMI（自动计算）",
-        "hypertension": "* 高血压",
-        "diabetes": "* 糖尿病",
-        "hyperlipidemia": "* 高血脂",
-        "family_history": "* 家族病史",
-        "prev_heart_attack": "* 既往心脏病史",
-        "systolic_bp": "* 收缩压(mmHg)",
-        "diastolic_bp": "* 舒张压(mmHg)",
-        "heart_rate": "* 心率(bpm)",
-        "blood_sugar": "* 空腹血糖(mg/dL)",
-        "cholesterol_total": "* 总胆固醇(mg/dL)",
-        "smoking": "* 吸烟状态",
-        "alcohol": "* 饮酒量",
-        "physical_activity": "* 体力活动",
-        "diet": "* 饮食类型",
-        "stress_level": "* 压力水平",
-        "missing_feat": "⚠️ 缺少以下特征的输入组件：",
-        "feat_tip": "请在代码的「心脏病风险预测」模块中，为上述特征添加对应的输入组件（number_input/selectbox）",
-        "predict_btn": "📊 开始预测",
-        "pred_result": "预测结果",
-        "risk_pos": "⚠️ 预测结果：存在心脏病风险",
-        "risk_neg": "✅ 预测结果：无心脏病风险",
-        "risk_prob": "风险概率",
-        "model_desc": "📋 模型说明",
-        "model_type": "模型类型：逻辑回归",
-        "test_acc": "测试集准确率",
-        "medical_tip": "注：该预测仅为数据分析演示，不构成医学诊断依据！",
-        "model_eval": "📈 模型性能评估报告",
-        "core_metrics": "核心指标",
-        "class_metrics": "分类指标详情",
-        "conf_matrix": "混淆矩阵",
-        "true_label": "真实",
-        "pred_label": "预测",
-        "model_note": "模型说明",
-        "train_data": "训练数据占比：80%（测试集20%）",
-        "process_strategy": "处理策略：分类特征LabelEncoder编码",
-        "scenario": "适用场景：心脏病风险初步筛查演示",
-        "usage_tip": "💡 使用提示：",
-        "path_tip": "1. 请先确保数据集路径正确",
-        "target_tip": "2. 目标列名需与代码中 target_col 一致",
-        "input_tip": "3. 预测模块需补充所有特征的输入组件",
-        "tool_tip": "4. 本App仅用于数据分析演示，非医学工具",
-        "distribution_by": "{feature} 按 {target} 的分布"
+        "page_title": "心脏病风险预测系统",
+        "sidebar_title": "心脏病风险分析系统",
+        "nav_data": "数据概览",
+        "nav_eda": "探索性数据分析",
+        "nav_predict": "个人风险预测",
+        "nav_eval": "模型性能评估",
+        "data_loaded": "数据已自动平衡：总样本 {total:,} 条 | 有心脏病 {pos:,} 条（占比 {pct:.1f}%）",
+        "avg_age_title": "有/无心脏病患者的平均年龄对比",
+        "age_x": "平均年龄（岁）",
+        "age_no": "无心脏病",
+        "age_yes": "有心脏病",
+        "age_summary": "有心脏病患者平均年龄 **{yes:.1f}岁**，比无心脏病患者高 **{diff:.1f}岁**",
+        "age_sample": "样本量：无心脏病 {n_no:,} 人 | 有心脏病 {n_yes:,} 人",
+        "bmi": "BMI对比",
+        "sbp": "收缩压对比",
+        "chol": "总胆固醇对比",
+        "gender": "性别分布",
+        "smoking": "吸烟情况",
+        "activity": "运动频率",
+        "hypertension_pie": "高血压患者心脏病比例",
+        "predict_title": "个人心脏病风险预测",
+        "age": "年龄",
+        "height": "身高(cm)",
+        "weight": "体重(kg)",
+        "your_bmi": "您的BMI",
+        "gender_label": "性别",
+        "smoking_label": "吸烟",
+        "alcohol_label": "饮酒频率",
+        "activity_label": "运动水平",
+        "diet_label": "饮食习惯",
+        "stress_label": "压力水平",
+        "hypertension_label": "是否有高血压",
+        "diabetes_label": "是否有糖尿病",
+        "hyperlipidemia_label": "是否有高血脂",
+        "family_history_label": "是否有家族史",
+        "predict_btn": "开始预测",
+        "prob_label": "患病概率",
+        "high_risk": "高风险！建议尽快就医",
+        "low_risk": "低风险！继续保持健康生活",
+        "eval_title": "模型性能评估",
+        "accuracy": "测试集准确率",
+        "feature_importance_title": "心脏病风险因素重要性排行榜（Top 10）",
+        "feature_importance_desc": "基于逻辑回归系数绝对值排序，数值越大表示该因素对预测结果影响越大",
+        "select_viz": "选择图形",
+        "male": "男",
+        "female": "女",
+        "smoking_never": "从不吸烟",
+        "smoking_former": "已戒烟",
+        "smoking_current": "目前吸烟",
+        "alcohol_none": "不饮酒",
+        "alcohol_low": "少量",
+        "alcohol_moderate": "适量",
+        "alcohol_high": "大量",
+        "activity_sedentary": "很少运动",
+        "activity_moderate": "适度运动",
+        "activity_active": "经常运动",
+        "diet_healthy": "健康",
+        "diet_average": "一般",
+        "diet_unhealthy": "不健康",
+        "stress_low": "低",
+        "stress_medium": "中",
+        "stress_high": "高",
+        "no_hd": "无心脏病",
+        "yes_hd": "有心脏病",
     },
     "en": {
-        "app_title": "❤️ Heart Disease Prediction Dataset Analysis App",
-        "sidebar_nav": "📌 Function Navigation",
-        "modules": ["Data Overview", "Exploratory Data Analysis (EDA)", "Heart Disease Risk Prediction", "Model Performance Evaluation"],
-        "data_overview": "📊 Basic Data Information",
-        "data_head": "First 10 Rows of Data",
-        "data_stats": "Basic Data Statistics",
-        "data_info": "Data Structure Information",
-        "target_dist": "Target Variable Distribution",
-        "eda_title": "🔍 Exploratory Data Analysis (EDA)",
-        "eda_types": ["Univariate Distribution", "Feature Correlation Heatmap", "Feature-Target Correlation", "Scatter Plot Analysis", "Violin Plot Analysis"],
-        "select_feat": "Select Feature to Analyze",
-        "cat_feat": "Categorical Feature",
-        "num_feat": "Numerical Feature",
-        "mean": "Mean",
-        "corr_heatmap": "Feature Correlation Heatmap",
-        "target_corr": "Feature-Target Correlation",
-        "dist_compare": "Distribution Comparison",
-        "scatter_title": "Bivariate Scatter Plot (with Regression Line)",
-        "violin_title": "Violin Plot (Distribution Density)",
-        "predict_title": "🔮 Heart Disease Risk Prediction Tool",
-        "input_info": "Please Enter Health Information (* Required)",
-        "age": "* Age",
-        "height": "* Height(cm)",
-        "weight": "* Weight(kg)",
-        "bmi": "BMI (Auto-Calculated)",
-        "hypertension": "* Hypertension",
-        "diabetes": "* Diabetes",
-        "hyperlipidemia": "* Hyperlipidemia",
-        "family_history": "* Family History",
-        "prev_heart_attack": "* Previous Heart Attack",
-        "systolic_bp": "* Systolic BP(mmHg)",
-        "diastolic_bp": "* Diastolic BP(mmHg)",
-        "heart_rate": "* Heart Rate(bpm)",
-        "blood_sugar": "* Fasting Blood Sugar(mg/dL)",
-        "cholesterol_total": "* Total Cholesterol(mg/dL)",
-        "smoking": "* Smoking Status",
-        "alcohol": "* Alcohol Intake",
-        "physical_activity": "* Physical Activity",
-        "diet": "* Diet Type",
-        "stress_level": "* Stress Level",
-        "missing_feat": "⚠️ Missing Input Components for Features:",
-        "feat_tip": "Please add corresponding input components (number_input/selectbox) for the above features in the 'Heart Disease Risk Prediction' module",
-        "predict_btn": "📊 Start Prediction",
-        "pred_result": "Prediction Result",
-        "risk_pos": "⚠️ Prediction Result: Heart Disease Risk Exists",
-        "risk_neg": "✅ Prediction Result: No Heart Disease Risk",
-        "risk_prob": "Risk Probability",
-        "model_desc": "📋 Model Description",
-        "model_type": "Model Type: Logistic Regression",
-        "test_acc": "Test Set Accuracy",
-        "medical_tip": "Note: This prediction is for data analysis demonstration only, not a medical diagnosis!",
-        "model_eval": "📈 Model Performance Evaluation Report",
-        "core_metrics": "Core Metrics",
-        "class_metrics": "Classification Metrics Details",
-        "conf_matrix": "Confusion Matrix",
-        "true_label": "True",
-        "pred_label": "Pred",
-        "model_note": "Model Notes",
-        "train_data": "Training Data Ratio: 80% (Test Set 20%)",
-        "process_strategy": "Processing Strategy: LabelEncoder for Categorical Features",
-        "scenario": "Application: Preliminary Heart Disease Risk Screening Demo",
-        "usage_tip": "💡 Usage Tips:",
-        "path_tip": "1. Ensure the dataset path is correct",
-        "target_tip": "2. Target column name must match 'target_col' in the code",
-        "input_tip": "3. Add input components for all features in the prediction module",
-        "tool_tip": "4. This App is for data analysis only, not a medical tool",
-        "distribution_by": "Distribution of {feature} by {target}"
+        "page_title": "Heart Disease Risk Prediction System",
+        "sidebar_title": "Heart Disease Risk Analysis System",
+        "nav_data": "Data Overview",
+        "nav_eda": "Exploratory Data Analysis",
+        "nav_predict": "Personal Risk Prediction",
+        "nav_eval": "Model Performance Evaluation",
+        "data_loaded": "Data auto-balanced: Total {total:,} samples | Heart Disease {pos:,} ({pct:.1f}%)",
+        "avg_age_title": "Average Age Comparison: With/Without Heart Disease",
+        "age_x": "Average Age (years)",
+        "age_no": "No Heart Disease",
+        "age_yes": "Heart Disease",
+        "age_summary": "Patients with heart disease: average **{yes:.1f} years**, **{diff:.1f} years** older",
+        "age_sample": "Sample size: No HD {n_no:,} | With HD {n_yes:,}",
+        "bmi": "BMI Comparison",
+        "sbp": "Systolic BP Comparison",
+        "chol": "Total Cholesterol Comparison",
+        "gender": "Gender Distribution",
+        "smoking": "Smoking Status",
+        "activity": "Physical Activity Level",
+        "hypertension_pie": "Heart Disease Rate in Hypertensive Patients",
+        "predict_title": "Personal Heart Disease Risk Prediction",
+        "age": "Age",
+        "height": "Height (cm)",
+        "weight": "Weight (kg)",
+        "your_bmi": "Your BMI",
+        "gender_label": "Gender",
+        "smoking_label": "Smoking",
+        "alcohol_label": "Alcohol Intake",
+        "activity_label": "Physical Activity",
+        "diet_label": "Diet",
+        "stress_label": "Stress Level",
+        "hypertension_label": "Has Hypertension?",
+        "diabetes_label": "Has Diabetes?",
+        "hyperlipidemia_label": "Has Hyperlipidemia?",
+        "family_history_label": "Family History?",
+        "predict_btn": "Start Prediction",
+        "prob_label": "Risk Probability",
+        "high_risk": "High Risk! Seek medical attention promptly",
+        "low_risk": "Low Risk! Keep up the healthy lifestyle",
+        "eval_title": "Model Performance Evaluation",
+        "accuracy": "Test Set Accuracy",
+        "feature_importance_title": "Top 10 Risk Factors for Heart Disease",
+        "feature_importance_desc": "Ranked by absolute value of logistic regression coefficients",
+        "select_viz": "Select Visualization",
+        "male": "Male",
+        "female": "Female",
+        "smoking_never": "Never",
+        "smoking_former": "Former",
+        "smoking_current": "Current",
+        "alcohol_none": "None",
+        "alcohol_low": "Low",
+        "alcohol_moderate": "Moderate",
+        "alcohol_high": "High",
+        "activity_sedentary": "Sedentary",
+        "activity_moderate": "Moderate",
+        "activity_active": "Active",
+        "diet_healthy": "Healthy",
+        "diet_average": "Average",
+        "diet_unhealthy": "Unhealthy",
+        "stress_low": "Low",
+        "stress_medium": "Medium",
+        "stress_high": "High",
+        "no_hd": "No Heart Disease",
+        "yes_hd": "Heart Disease",
     }
 }
 
-# 页面配置 + 语言选择
-st.set_page_config(
-    page_title="Heart Disease Prediction App",
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
+st.set_page_config(page_title="心脏病风险预测系统", layout="wide", initial_sidebar_state="expanded")
+st.sidebar.markdown("# 心脏病风险分析系统")
+lang = st.sidebar.radio("Language / 语言", ["中文", "English"], index=0)
+txt = LANG["zh"] if lang == "中文" else LANG["en"]
 
-st.sidebar.header("🌐 Language / 语言")
-lang = st.sidebar.radio("Select Language", ["中文", "English"], index=0)
-lang_code = "zh" if lang == "中文" else "en"
-text = LANG_DICT[lang_code]
-
-# ---------------------- 侧边栏添加Logo和相关信息（新增）----------------------
 st.sidebar.markdown("---")
-# 双Logo并排显示
-col_logo1, col_logo2 = st.sidebar.columns(2)
-with col_logo1:
-    st.image("WUT-Logo.png", use_column_width=True)  # 武汉理工大学Logo
-with col_logo2:
-    st.image("efrei-logo.png", use_column_width=True)  # EFREI Logo
-
-# 新增信息展示（完全匹配图四）
-st.sidebar.markdown("### GitHub URL")
-st.sidebar.markdown("[https://github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App](https://github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App)")
-
+col1, col2 = st.sidebar.columns(2)
+with col1:
+    st.image("WUT-Logo.png", width=100)
+    st.caption("武汉理工大学")
+with col2:
+    st.image("efrei-logo.png", width=100)
+    st.caption("EFREI Paris")
+st.sidebar.markdown("### Author")
+st.sidebar.markdown("Ziwei Shan")
+st.sidebar.markdown("### GitHub")
+st.sidebar.markdown("[github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App](https://github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App)")
 st.sidebar.markdown("### Course")
 st.sidebar.markdown("Data Visualization 2025")
-
-st.sidebar.markdown("### Prof")
+st.sidebar.markdown("### Professor")
 st.sidebar.markdown("Mano Mathew")
 
-
-
-# ---------------------- 数据加载与预处理 ----------------------
 @st.cache_data
-def load_data(lang_code):
-    dataset_path = "synthetic_heart_disease_dataset.csv"
-    try:
-        df = pd.read_csv(dataset_path)
-    except FileNotFoundError:
-        err_msg = "未找到数据集！" if lang_code == "zh" else "Dataset not found!"
-        st.error(f"{err_msg} Please ensure '{dataset_path}' is in the same folder.")
-        st.stop()
-    
-    target_col = "Heart_Disease"
-    target_col_bilingual = {
-        "zh": "心脏病状态",
-        "en": "Heart Disease"
-    }[lang_code]
-    
-    if target_col not in df.columns:
-        st.error(f"数据集缺少目标列 '{target_col}'！" if lang_code == "zh" else f"Dataset missing target column '{target_col}'!")
-        st.stop()
-    
-    return df, target_col, target_col_bilingual
+def load_data():
+    df = pd.read_csv("synthetic_heart_disease_dataset.csv")
+    df_pos = df[df["Heart_Disease"] == 1]
+    df_neg = df[df["Heart_Disease"] == 0].sample(n=len(df_pos), random_state=42)
+    df_balanced = pd.concat([df_pos, df_neg], ignore_index=True)
+    df_balanced = df_balanced.sample(frac=1, random_state=42).reset_index(drop=True)
+    return df_balanced
+df_raw = load_data()
+total = len(df_raw)
+pos_count = len(df_raw[df_raw["Heart_Disease"] == 1])
+st.success(txt["data_loaded"].format(total=total, pos=pos_count, pct=pos_count/total*100))
 
-df, target_col, target_col_bilingual = load_data(lang_code)
+df_plot = df_raw.copy()
+df_plot["Gender"] = df_plot["Gender"].map({"Male": txt["male"], "Female": txt["female"]})
+df_plot["Smoking"] = df_plot["Smoking"].map({"Never": txt["smoking_never"], "Former": txt["smoking_former"], "Current": txt["smoking_current"]})
+df_plot["Physical_Activity"] = df_plot["Physical_Activity"].map({
+    "Sedentary": txt["activity_sedentary"],
+    "Moderate": txt["activity_moderate"],
+    "Active": txt["activity_active"]
+})
+df_plot["心脏病状态"] = df_plot["Heart_Disease"].map({0: txt["no_hd"], 1: txt["yes_hd"]})
 
-def preprocess_data(df, target_col, lang_code):
-    X = df.drop(target_col, axis=1)
-    y = df[target_col]
-    
-    cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
-    yes_no_cols = []
-    for col in X.columns:
-        if col not in cat_cols:
-            unique_vals = set(X[col].dropna().unique())
-            if unique_vals.issubset({'Yes', 'No', 'yes', 'no', 'Y', 'N', 'y', 'n'}):
-                yes_no_cols.append(col)
-    cat_cols = list(set(cat_cols + yes_no_cols))
-    num_cols = [col for col in X.columns if col not in cat_cols]
-    
-    feat_name_bilingual = {
-        "Age": {"zh": "年龄", "en": "Age"},
-        "Gender": {"zh": "性别", "en": "Gender"},
-        "Weight": {"zh": "体重(kg)", "en": "Weight(kg)"},
-        "Height": {"zh": "身高(cm)", "en": "Height(cm)"},
-        "BMI": {"zh": "BMI", "en": "BMI"},
-        "Hypertension": {"zh": "高血压", "en": "Hypertension"},
-        "Diabetes": {"zh": "糖尿病", "en": "Diabetes"},
-        "Hyperlipidemia": {"zh": "高血脂", "en": "Hyperlipidemia"},
-        "Family_History": {"zh": "家族病史", "en": "Family History"},
-        "Previous_Heart_Attack": {"zh": "既往心脏病史", "en": "Previous Heart Attack"},
-        "Systolic_BP": {"zh": "收缩压(mmHg)", "en": "Systolic BP(mmHg)"},
-        "Diastolic_BP": {"zh": "舒张压(mmHg)", "en": "Diastolic BP(mmHg)"},
-        "Heart_Rate": {"zh": "心率(bpm)", "en": "Heart Rate(bpm)"},
-        "Blood_Sugar_Fasting": {"zh": "空腹血糖(mg/dL)", "en": "Fasting Blood Sugar(mg/dL)"},
-        "Cholesterol_Total": {"zh": "总胆固醇(mg/dL)", "en": "Total Cholesterol(mg/dL)"},
-        "Smoking": {"zh": "吸烟状态", "en": "Smoking Status"},
-        "Alcohol_Intake": {"zh": "饮酒量", "en": "Alcohol Intake"},
-        "Physical_Activity": {"zh": "体力活动", "en": "Physical Activity"},
-        "Diet": {"zh": "饮食类型", "en": "Diet Type"},
-        "Stress_Level": {"zh": "压力水平", "en": "Stress Level"}
-    }
-    
-    for col in X.columns:
-        if col not in feat_name_bilingual:
-            feat_name_bilingual[col] = {"zh": col, "en": col}
-    
-    cat_feat_values = {}
-    for col in cat_cols:
-        unique_vals = df[col].unique()
-        unique_vals = [str(val) if pd.isna(val) else val for val in unique_vals]
-        cat_feat_values[col] = unique_vals
-    
-    le_dict = {}
-    for col in cat_cols:
-        le = LabelEncoder()
-        df_col = df[col].fillna("nan")
-        le.fit(df_col)
-        le_dict[col] = le
-    
-    if y.dtype == "object" or y.dtype == "category":
-        le_y = LabelEncoder()
-        y = le_y.fit_transform(y)
-        le_dict["target"] = le_y
-    
-    return X, y, cat_cols, num_cols, cat_feat_values, le_dict, feat_name_bilingual
+df_train = df_raw.copy()
+le_dict = {}
+cat_cols = ["Gender", "Smoking", "Alcohol_Intake", "Physical_Activity", "Diet", "Stress_Level"]
+for col in cat_cols:
+    le = LabelEncoder()
+    df_train[col] = le.fit_transform(df_train[col].astype(str))
+    le_dict[col] = le
+X = df_train.drop("Heart_Disease", axis=1)
+y = df_train["Heart_Disease"]
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
 
-X, y, cat_cols, num_cols, cat_feat_values, le_dict, feat_name_bilingual = preprocess_data(df, target_col, lang_code)
-
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=y
-)
-
-# ---------------------- 数据编码函数 ----------------------
-def encode_data(data, cat_cols, num_cols, le_dict):
-    data_encoded = data.copy()
-    for col in cat_cols:
-        if col in le_dict:
-            data_encoded[col] = data_encoded[col].fillna("nan")
-            known_classes = set(le_dict[col].classes_)
-            data_encoded[col] = data_encoded[col].apply(
-                lambda x: x if x in known_classes else "unknown"
-            )
-            if "unknown" not in known_classes:
-                le_dict[col].classes_ = np.append(le_dict[col].classes_, "unknown")
-            data_encoded[col] = le_dict[col].transform(data_encoded[col]).astype(int)
-    
-    for col in num_cols:
-        if col in data_encoded.columns:
-            data_encoded[col] = pd.to_numeric(data_encoded[col], errors='coerce')
-            if col in X_train.columns:
-                mean_val = X_train[col].astype(float).mean()
-                data_encoded[col] = data_encoded[col].fillna(mean_val)
-            data_encoded[col] = data_encoded[col].astype(float)
-    
-    for col in data_encoded.columns:
-        if data_encoded[col].dtype == 'object':
-            le = LabelEncoder()
-            data_encoded[col] = data_encoded[col].fillna("nan")
-            le.fit(data_encoded[col])
-            data_encoded[col] = le.transform(data_encoded[col]).astype(int)
-    
-    return data_encoded
-
-X_train_encoded = encode_data(X_train, cat_cols, num_cols, le_dict)
-X_test_encoded = encode_data(X_test, cat_cols, num_cols, le_dict)
-
-# ---------------------- 模型训练 ----------------------
 @st.cache_resource
-def train_model(X_train, y_train):
-    model = LogisticRegression(max_iter=2000, random_state=42, class_weight="balanced")
+def train_model():
+    model = LogisticRegression(max_iter=1000, random_state=42)
     model.fit(X_train, y_train)
     return model
+model = train_model()
+acc = accuracy_score(y_test, model.predict(X_test))
 
-model = train_model(X_train_encoded, y_train)
-y_pred = model.predict(X_test_encoded)
-acc = accuracy_score(y_test, y_pred)
-conf_mat = confusion_matrix(y_test, y_pred)
-class_report = classification_report(y_test, y_pred, output_dict=True)
+option = st.sidebar.radio("功能导航 / Navigation", [
+    txt["nav_data"], txt["nav_eda"], txt["nav_predict"], txt["nav_eval"]
+])
+st.title("心脏病预测数据集分析系统" if lang == "中文" else "Heart Disease Prediction Analysis System")
 
-# ---------------------- 界面模块 ----------------------
-st.title(text["app_title"])
-st.sidebar.header(text["sidebar_nav"])
-option = st.sidebar.selectbox(text["modules"][0], text["modules"])
-
-# 1. 数据概览
-if option == text["modules"][0]:
-    st.header(text["data_overview"])
-    col1, col2 = st.columns(2, gap="large")
-    
+if option == txt["nav_data"]:
+    st.header(txt["nav_data"])
+    col1, col2 = st.columns([3, 1])
     with col1:
-        st.subheader(text["data_head"])
-        df_display = df.rename(columns={k: v[lang_code] for k, v in feat_name_bilingual.items()})
-        st.dataframe(df_display.head(10), use_container_width=True, height=300)
-        
-        st.subheader(text["data_stats"])
-        st.dataframe(df.describe(include="all").round(2), use_container_width=True, height=300)
-    
+        st.dataframe(df_raw.head(10), use_container_width=True)
     with col2:
-        st.subheader(text["data_info"])
-        buf = io.StringIO()
-        df.info(buf=buf)
-        data_info = buf.getvalue()
-        st.text(data_info)
-        
-        st.subheader(text["target_dist"])
-        target_count = df[target_col].value_counts()
-        fig, ax = plt.subplots(figsize=(8, 4))
-        
-        if lang_code == "zh":
-            plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
-            plt.rcParams["axes.unicode_minus"] = False
-        
-        sns.countplot(x=target_col, data=df, ax=ax, palette="viridis", edgecolor="black")
-        ax.set_title(f"{text['target_dist']} - {target_col_bilingual}", fontsize=12)
-        ax.set_xlabel(target_col_bilingual)
-        ax.set_ylabel("数量" if lang_code == "zh" else "Count")
-        for i, v in enumerate(target_count.values):
-            ax.text(i, v + 5, str(v), ha="center", va="bottom", fontsize=10)
-        plt.xticks(rotation=0)
-        plt.tight_layout()
-        st.pyplot(fig)
-
-# 2. 探索性分析（EDA）
-elif option == text["modules"][1]:
-    st.header(text["eda_title"])
-    eda_type = st.selectbox("Select EDA Type", text["eda_types"])
-    
-    if lang_code == "zh":
-        plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
-        plt.rcParams["axes.unicode_minus"] = False
-    else:
-        plt.rcParams["font.family"] = ["Arial", "Helvetica", "sans-serif"]
-    
-    # 1. 单变量分布
-    if eda_type == text["eda_types"][0]:
-        st.subheader(text["select_feat"])
-        feat_type = st.radio("", [text["cat_feat"], text["num_feat"]])
-        
-        if feat_type == text["cat_feat"] and cat_cols:
-            selected_feat = st.selectbox(text["cat_feat"], cat_cols)
-            fig, ax = plt.subplots(figsize=(8, 4))
-            sns.countplot(x=selected_feat, data=df, ax=ax, palette="Set2", edgecolor="black")
-            feat_name = feat_name_bilingual[selected_feat][lang_code]
-            ax.set_title(f"{feat_name} - {text['dist_compare']}", fontsize=12)
-            ax.set_xlabel(feat_name, fontsize=10)
-            ax.set_ylabel("数量" if lang_code == "zh" else "Count", fontsize=10)
-            plt.xticks(rotation=45, fontsize=9)
-            plt.tight_layout()
-            st.pyplot(fig)
-        
-        elif feat_type == text["num_feat"] and num_cols:
-            selected_feat = st.selectbox(text["num_feat"], num_cols)
-            fig, ax = plt.subplots(figsize=(8, 4))
-            sns.histplot(df[selected_feat], kde=True, ax=ax, color="skyblue", edgecolor="black")
-            feat_name = feat_name_bilingual[selected_feat][lang_code]
-            ax.set_title(f"{feat_name} - {text['dist_compare']}", fontsize=12)
-            ax.set_xlabel(feat_name, fontsize=10)
-            ax.set_ylabel("密度" if lang_code == "zh" else "Density", fontsize=10)
-            plt.tight_layout()
-            st.pyplot(fig)
-    
-    # 2. 特征相关性热力图
-    elif eda_type == text["eda_types"][1]:
-        st.subheader(text["corr_heatmap"])
-        if num_cols:
-            corr_df = df[num_cols + [target_col]].corr()
-            fig, ax = plt.subplots(figsize=(10, 8))
-            sns.heatmap(
-                corr_df, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5, ax=ax,
-                annot_kws={"fontsize": 9}
-            )
-            ax.set_title(text["corr_heatmap"], fontsize=14)
-            plt.tight_layout()
-            st.pyplot(fig)
-        else:
-            st.info("当前数据集无数值特征，无法生成相关性热力图" if lang_code == "zh" else "No numerical features in the dataset, cannot generate correlation heatmap")
-    
-    # 3. 特征与目标变量关联
-    elif eda_type == text["eda_types"][2]:
-        st.subheader(text["target_corr"])
-        selected_feat = st.selectbox(text["select_feat"], X.columns)
-        feat_name = feat_name_bilingual[selected_feat][lang_code]
-        target_name = target_col_bilingual
-        
-        fig, ax = plt.subplots(figsize=(8, 4))
-        if selected_feat in cat_cols:
-            sns.countplot(x=selected_feat, hue=target_col, data=df, ax=ax, palette="Set1", edgecolor="black")
-            ax.set_title(text["distribution_by"].format(feature=feat_name, target=target_name), fontsize=12)
-            ax.set_xlabel(feat_name, fontsize=10)
-            ax.set_ylabel("数量" if lang_code == "zh" else "Count", fontsize=10)
-            ax.legend(title=target_name, labels=["无" if lang_code == "zh" else "No", "有" if lang_code == "zh" else "Yes"])
-        else:
-            sns.boxplot(x=target_col, y=selected_feat, data=df, ax=ax, palette="Set1", medianprops={"color": "black"})
-            ax.set_title(text["distribution_by"].format(feature=feat_name, target=target_name), fontsize=12)
-            ax.set_xlabel(target_name, fontsize=10)
-            ax.set_ylabel(feat_name, fontsize=10)
-            ax.set_xticklabels(["无" if lang_code == "zh" else "No", "有" if lang_code == "zh" else "Yes"])
-        
-        plt.xticks(rotation=45, fontsize=9)
-        plt.tight_layout()
-        st.pyplot(fig)
-    
-    # 4. 散点图分析
-    elif eda_type == text["eda_types"][3]:
-        st.subheader(text["scatter_title"])
-        if len(num_cols) >= 2:
-            feat1 = st.selectbox("选择第一个特征" if lang_code == "zh" else "Select First Feature", num_cols)
-            feat2 = st.selectbox("选择第二个特征" if lang_code == "zh" else "Select Second Feature", num_cols, index=1)
-            feat1_name = feat_name_bilingual[feat1][lang_code]
-            feat2_name = feat_name_bilingual[feat2][lang_code]
-            
-            fig, ax = plt.subplots(figsize=(10, 6))
-            scatter = sns.scatterplot(
-                x=feat1, 
-                y=feat2, 
-                hue=target_col, 
-                data=df, 
-                ax=ax,
-                palette={0: "blue", 1: "red"},
-                s=60,
-                alpha=0.7
-            )
-            
-            sns.regplot(
-                x=feat1, 
-                y=feat2, 
-                data=df, 
-                ax=ax, 
-                scatter=False, 
-                color="black", 
-                line_kws={"linestyle": "--", "alpha": 0.7}
-            )
-            
-            if lang_code == "zh":
-                title = f"{feat1_name} 与 {feat2_name} 的散点图（按 {target_col_bilingual} 分组）"
-                legend_labels = ["无心脏病", "有心脏病"]
-            else:
-                title = f"Scatter Plot of {feat1_name} vs {feat2_name} (Grouped by {target_col_bilingual})"
-                legend_labels = ["No Heart Disease", "Heart Disease"]
-            
-            ax.set_title(title, fontsize=12)
-            ax.set_xlabel(feat1_name, fontsize=10)
-            ax.set_ylabel(feat2_name, fontsize=10)
-            
-            handles, _ = scatter.get_legend_handles_labels()
-            ax.legend(handles, legend_labels, title=target_col_bilingual)
-            
-            plt.tight_layout()
-            st.pyplot(fig)
-        else:
-            st.info("当前数据集的数值特征不足2个，无法生成散点图" if lang_code == "zh" else "Not enough numerical features (need at least 2) to generate scatter plot")
-    
-    # 5. 小提琴图分析
-    elif eda_type == text["eda_types"][4]:
-        st.subheader(text["violin_title"])
-        if num_cols:
-            selected_feat = st.selectbox(text["select_feat"], num_cols)
-            feat_name = feat_name_bilingual[selected_feat][lang_code]
-            
-            fig, ax = plt.subplots(figsize=(8, 4))
-            sns.violinplot(
-                x=target_col, y=selected_feat, data=df, ax=ax,
-                palette="Set1", inner="quartile", linewidth=1
-            )
-            ax.set_title(f"{feat_name} 按 {target_col_bilingual} 的分布密度" if lang_code == "zh" else f"Distribution Density of {feat_name} by {target_col_bilingual}", fontsize=12)
-            ax.set_xlabel(target_col_bilingual, fontsize=10)
-            ax.set_ylabel(feat_name, fontsize=10)
-            ax.set_xticklabels(["无" if lang_code == "zh" else "No", "有" if lang_code == "zh" else "Yes"])
-            plt.tight_layout()
-            st.pyplot(fig)
-        else:
-            st.info("当前数据集无数值特征，无法生成小提琴图" if lang_code == "zh" else "No numerical features in the dataset, cannot generate violin plot")
-
-# 3. 心脏病风险预测
-elif option == text["modules"][2]:
-    st.header(text["predict_title"])
-    st.subheader(text["input_info"])
-    
-    input_data = {}
-    
-    # 数值特征输入
-    num_feat_input = {
-        "Age": {"label": text["age"], "min": 0.0, "max": 120.0, "step": 1.0},
-        "Height": {"label": text["height"], "min": 50.0, "max": 250.0, "step": 1.0},
-        "Weight": {"label": text["weight"], "min": 20.0, "max": 200.0, "step": 0.1},
-        "Systolic_BP": {"label": text["systolic_bp"], "min": 60.0, "max": 250.0, "step": 1.0},
-        "Diastolic_BP": {"label": text["diastolic_bp"], "min": 40.0, "max": 150.0, "step": 1.0},
-        "Heart_Rate": {"label": text["heart_rate"], "min": 30.0, "max": 200.0, "step": 1.0},
-        "Blood_Sugar_Fasting": {"label": text["blood_sugar"], "min": 40.0, "max": 400.0, "step": 1.0},
-        "Cholesterol_Total": {"label": text["cholesterol_total"], "min": 100.0, "max": 500.0, "step": 1.0}
-    }
-    for feat, params in num_feat_input.items():
-        if feat in X.columns:
-            input_data[feat] = st.number_input(
-                params["label"],
-                min_value=params["min"],
-                max_value=params["max"],
-                step=params["step"],
-                key=feat
-            )
-    
-    # 核心分类特征输入
-    core_cat_feats = {
-        "Hypertension": {"label": text["hypertension"]},
-        "Diabetes": {"label": text["diabetes"]},
-        "Hyperlipidemia": {"label": text["hyperlipidemia"]},
-        "Family_History": {"label": text["family_history"]},
-        "Previous_Heart_Attack": {"label": text["prev_heart_attack"]},
-        "Gender": {"label": "性别" if lang_code == "zh" else "Gender"}
-    }
-    for feat, params in core_cat_feats.items():
-        if feat in X.columns:
-            options = cat_feat_values.get(feat, ["Yes", "No"])
-            input_data[feat] = st.selectbox(params["label"], options=options, key=feat)
-    
-    # 其他分类特征输入
-    other_cat_feats = {
-        "Smoking": {"label": text["smoking"]},
-        "Alcohol_Intake": {"label": text["alcohol"]},
-        "Physical_Activity": {"label": text["physical_activity"]},
-        "Diet": {"label": text["diet"]},
-        "Stress_Level": {"label": text["stress_level"]}
-    }
-    for feat, params in other_cat_feats.items():
-        if feat in X.columns:
-            options = cat_feat_values.get(feat, ["Low", "Medium", "High"])
-            input_data[feat] = st.selectbox(params["label"], options=options, key=feat)
-    
-    # 自动计算BMI
-    if "Height" in input_data and "Weight" in input_data and input_data["Height"] > 0:
-        bmi = input_data["Weight"] / ((input_data["Height"] / 100) ** 2)
-        st.number_input(text["bmi"], value=round(bmi, 2), disabled=True)
-        if "BMI" in X.columns:
-            input_data["BMI"] = bmi
-    
-    # 检查缺失特征
-    missing_feats = [feat for feat in X.columns if feat not in input_data]
-    if missing_feats:
-        st.warning(f"{text['missing_feat']} {', '.join(missing_feats)}")
-        st.info(text["feat_tip"])
-    else:
-        # 预测按钮
-        if st.button(text["predict_btn"]):
-            input_df = pd.DataFrame([input_data])
-            input_encoded = encode_data(input_df, cat_cols, num_cols, le_dict)
-            input_encoded = input_encoded[X.columns]
-            input_encoded = input_encoded.astype(float)
-            
-            pred = model.predict(input_encoded)[0]
-            pred_prob = model.predict_proba(input_encoded)[0][1]
-            
-            st.subheader(text["pred_result"])
-            if pred == 1:
-                st.error(text["risk_pos"])
-            else:
-                st.success(text["risk_neg"])
-            st.metric(text["risk_prob"], f"{pred_prob:.2%}")
-            
-            st.info(text["medical_tip"])
-            st.subheader(text["model_desc"])
-            st.write(text["model_type"])
-            st.write(f"{text['test_acc']}: {acc:.2%}")
-
-# 4. 模型性能评估
-elif option == text["modules"][3]:
-    st.header(text["model_eval"])
-    
-    col1, col2 = st.columns(2, gap="large")
-    
+        fig = px.pie(values=df_raw["Heart_Disease"].value_counts(),
+                     names=[txt["no_hd"], txt["yes_hd"]],
+                     color_discrete_sequence=["#00CC96", "#FF4444"], hole=0.4)
+        st.plotly_chart(fig, use_container_width=True)
+elif option == txt["nav_eda"]:
+    st.header(txt["nav_eda"])
+    viz = st.selectbox(txt["select_viz"], [
+        txt["avg_age_title"], txt["bmi"], txt["sbp"], txt["chol"],
+        txt["gender"], txt["smoking"], txt["activity"], txt["hypertension_pie"]
+    ])
+    if viz == txt["avg_age_title"]:
+        grouped = df_plot.groupby("心脏病状态")["Age"].mean().round(1)
+        count = df_plot["心脏病状态"].value_counts()
+        age_no = grouped.get(txt["no_hd"], 0)
+        age_yes = grouped.get(txt["yes_hd"], 0)
+        n_no = count.get(txt["no_hd"], 0)
+        n_yes = count.get(txt["yes_hd"], 0)
+        fig = go.Figure()
+        fig.add_trace(go.Bar(
+            y=[txt["no_hd"], txt["yes_hd"]],
+            x=[age_no, age_yes],
+            orientation='h',
+            text=[f"{age_no}岁" if lang=="中文" else f"{age_no} yrs", f"{age_yes}岁" if lang=="中文" else f"{age_yes} yrs"],
+            textposition="outside",
+            marker_color=["#00CC96", "#FF4444"],
+        ))
+        fig.update_layout(
+            title=txt["avg_age_title"],
+            xaxis_title=txt["age_x"],
+            yaxis_title="",
+            showlegend=False,
+            height=450,
+            xaxis=dict(range=[0, age_yes + 15]),
+            plot_bgcolor="rgba(0,0,0,0)",
+            margin=dict(l=140, r=60, t=80, b=60)
+        )
+        diff = age_yes - age_no
+        st.success(txt["age_summary"].format(yes=age_yes, diff=diff))
+        st.caption(txt["age_sample"].format(n_no=n_no, n_yes=n_yes))
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["bmi"]:
+        fig = px.box(df_plot, x="心脏病状态", y="BMI", color="心脏病状态",
+                     color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["sbp"]:
+        fig = px.box(df_plot, x="心脏病状态", y="Systolic_BP", color="心脏病状态",
+                     color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["chol"]:
+        fig = px.box(df_plot, x="心脏病状态", y="Cholesterol_Total", color="心脏病状态",
+                     color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["gender"]:
+        fig = px.histogram(df_plot, x="Gender", color="心脏病状态", barmode="group",
+                           color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["smoking"]:
+        fig = px.histogram(df_plot, x="Smoking", color="心脏病状态", barmode="group",
+                           color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["activity"]:
+        fig = px.histogram(df_plot, x="Physical_Activity", color="心脏病状态", barmode="group",
+                           color_discrete_sequence=["#00CC96", "#FF4444"])
+        st.plotly_chart(fig, use_container_width=True)
+    elif viz == txt["hypertension_pie"]:
+        hyper = df_plot[df_plot["Hypertension"] == 1]
+        if len(hyper) > 0:
+            fig = px.pie(hyper, names="心脏病状态", color_discrete_sequence=["#00CC96", "#FF4444"])
+            st.plotly_chart(fig, use_container_width=True)
+elif option == txt["nav_predict"]:
+    st.header(txt["predict_title"])
+    col1, col2 = st.columns(2)
     with col1:
-        st.subheader(text["core_metrics"])
-        metrics_df = pd.DataFrame({
-            "Metric": [text["test_acc"], "Precision", "Recall", "F1-Score"],
-            "Value": [
-                acc,
-                class_report["1"]["precision"],
-                class_report["1"]["recall"],
-                class_report["1"]["f1-score"]
-            ]
-        }).round(4)
-        st.dataframe(metrics_df, use_container_width=True)
-        
-        st.subheader(text["conf_matrix"])
-        fig, ax = plt.subplots(figsize=(6, 4))
-        
-        if lang_code == "zh":
-            plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
-        
-        sns.heatmap(conf_mat, annot=True, fmt="d", cmap="Blues", ax=ax)
-        ax.set_xlabel(f"{text['pred_label']}")
-        ax.set_ylabel(f"{text['true_label']}")
-        ax.set_title(text["conf_matrix"])
-        plt.tight_layout()
-        st.pyplot(fig)
-    
+        age = st.slider(txt["age"], 18, 100, 55)
+        height = st.number_input(txt["height"], 140, 220, 170)
+        weight = st.number_input(txt["weight"], 40, 150, 70)
+        gender = st.radio(txt["gender_label"], [txt["male"], txt["female"]])
     with col2:
-        st.subheader(text["class_metrics"])
-        class_df = pd.DataFrame(class_report).T.round(4)
-        st.dataframe(class_df, use_container_width=True)
-        
-        st.subheader(text["model_note"])
-        st.write(text["train_data"])
-        st.write(text["process_strategy"])
-        st.write(text["scenario"])
+        smoking = st.selectbox(txt["smoking_label"], [txt["smoking_never"], txt["smoking_former"], txt["smoking_current"]])
+        alcohol = st.selectbox(txt["alcohol_label"], [txt["alcohol_none"], txt["alcohol_low"], txt["alcohol_moderate"], txt["alcohol_high"]])
+        activity = st.selectbox(txt["activity_label"], [txt["activity_sedentary"], txt["activity_moderate"], txt["activity_active"]])
+        diet = st.selectbox(txt["diet_label"], [txt["diet_healthy"], txt["diet_average"], txt["diet_unhealthy"]])
+    col3, col4 = st.columns(2)
+    with col3:
+        stress = st.selectbox(txt["stress_label"], [txt["stress_low"], txt["stress_medium"], txt["stress_high"]])
+        hypertension = st.checkbox(txt["hypertension_label"])
+        diabetes = st.checkbox(txt["diabetes_label"])
+    with col4:
+        hyperlipidemia = st.checkbox(txt["hyperlipidemia_label"])
+        family_history = st.checkbox(txt["family_history_label"])
+    bmi = round(weight / ((height/100)**2), 1)
+    st.metric(txt["your_bmi"], bmi)
+    if st.button(txt["predict_btn"], type="primary"):
+        gender_map = {txt["male"]: "Male", txt["female"]: "Female"}
+        smoking_map = {txt["smoking_never"]: "Never", txt["smoking_former"]: "Former", txt["smoking_current"]: "Current"}
+        alcohol_map = {txt["alcohol_none"]: "None", txt["alcohol_low"]: "Low", txt["alcohol_moderate"]: "Moderate", txt["alcohol_high"]: "High"}
+        activity_map = {txt["activity_sedentary"]: "Sedentary", txt["activity_moderate"]: "Moderate", txt["activity_active"]: "Active"}
+        diet_map = {txt["diet_healthy"]: "Healthy", txt["diet_average"]: "Average", txt["diet_unhealthy"]: "Unhealthy"}
+        stress_map = {txt["stress_low"]: "Low", txt["stress_medium"]: "Medium", txt["stress_high"]: "High"}
+        input_data = {
+            "Age": age, "Height": height, "Weight": weight, "BMI": bmi,
+            "Systolic_BP": 120, "Diastolic_BP": 80, "Heart_Rate": 75, "Blood_Sugar_Fasting": 90, "Cholesterol_Total": 200,
+            "Gender": gender_map[gender],
+            "Smoking": smoking_map[smoking],
+            "Alcohol_Intake": alcohol_map[alcohol],
+            "Physical_Activity": activity_map[activity],
+            "Diet": diet_map[diet],
+            "Stress_Level": stress_map[stress],
+            "Hypertension": int(hypertension),
+            "Diabetes": int(diabetes),
+            "Hyperlipidemia": int(hyperlipidemia),
+            "Family_History": int(family_history),
+            "Previous_Heart_Attack": 0,
+        }
+        input_df = pd.DataFrame([input_data])
+        for col, le in le_dict.items():
+            if col in input_df.columns:
+                val = input_df.iloc[0][col]
+                if val not in le.classes_:
+                    val = le.classes_[0]
+                input_df[col] = le.transform([val])[0]
+        prob = model.predict_proba(input_df[X.columns])[0][1]
+        st.metric(txt["prob_label"], f"{prob:.1%}")
+        if prob > 0.5:
+            st.error(txt["high_risk"])
+        else:
+            st.success(txt["low_risk"])
+            st.balloons()
+elif option == txt["nav_eval"]:
+    st.header(txt["eval_title"])
+    st.metric(txt["accuracy"], f"{acc:.1%}")
+    st.info("数据已平衡，评估结果更真实可靠" if lang == "中文" else "Data is balanced, evaluation results are more reliable")
+    st.markdown(f"### {txt['feature_importance_title']}")
+    st.caption(txt["feature_importance_desc"])
+    importance = np.abs(model.coef_[0])
+    imp_df = pd.DataFrame({"特征": X.columns, "重要性": importance}).sort_values("重要性", ascending=False).head(10)
 
-# 使用提示
+    if lang == "中文":
+        name_map = {
+            'Diet': '饮食',
+            'Cholesterol_Total': '总胆固醇',
+            'Stress_Level': '压力水平',
+            'Diabetes': '糖尿病',
+            'Hypertension': '高血压',
+            'Smoking': '吸烟',
+            'Physical_Activity': '身体活动',
+            'Age': '年龄',
+            'Alcohol_Intake': '饮酒',
+            'Systolic_BP': '收缩压',
+            'Previous_Heart_Attack': '既往心梗',
+            'Family_History': '家族史'
+        }
+    else:
+        name_map = {
+            'Diet': 'Diet',
+            'Cholesterol_Total': 'Total Cholesterol',
+            'Stress_Level': 'Stress Level',
+            'Diabetes': 'Diabetes',
+            'Hypertension': 'Hypertension',
+            'Smoking': 'Smoking',
+            'Physical_Activity': 'Physical Activity',
+            'Age': 'Age',
+            'Alcohol_Intake': 'Alcohol Intake',
+            'Systolic_BP': 'Systolic BP',
+            'Previous_Heart_Attack': 'Previous Heart Attack',
+            'Family_History': 'Family History'
+        }
+    imp_df["显示名称"] = imp_df["特征"].map(name_map).fillna(imp_df["特征"])
+
+    fig = go.Figure(go.Bar(
+        x=imp_df["重要性"],
+        y=imp_df["显示名称"],
+        orientation='h',
+        marker_color='#FF4444',
+        text=imp_df["重要性"].round(4),
+        textposition='outside'
+    ))
+    fig.update_layout(
+        yaxis=dict(autorange="reversed"),
+        height=520,
+        xaxis_title="重要性得分（越高越关键）" if lang == "中文" else "Importance Score (Higher = More Critical)",
+        template="simple_white",
+        margin=dict(l=200)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
 st.sidebar.markdown("---")
-st.sidebar.subheader(text["usage_tip"])
-st.sidebar.write(text["path_tip"])
-st.sidebar.write(text["target_tip"])
-st.sidebar.write(text["input_tip"])
-st.sidebar.write(text["tool_tip"])
+st.sidebar.markdown("重要提示")
+st.sidebar.markdown("Important Notes")
+st.sidebar.markdown("1. 该测试结果仅供参考，不构成医疗诊断")
+st.sidebar.markdown("1.The test results are for reference only and do not constitute a medical diagnosis.")
+st.sidebar.markdown("2. 仅供学习用途，不具备医疗建议参考价值")
+st.sidebar.markdown("2.For educational purposes only, and have no reference value for medical advice.")
+st.sidebar.markdown("3. 如有健康疑虑，请咨询专业医护人员")
+st.sidebar.markdown("3.If you have health concerns, please consult professional medical staff.")
