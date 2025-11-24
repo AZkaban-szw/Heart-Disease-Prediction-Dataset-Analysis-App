@@ -182,9 +182,7 @@ st.sidebar.markdown("Data Visualization 2025")
 st.sidebar.markdown("### Prof")
 st.sidebar.markdown("Mano Mathew")
 
-st.sidebar.markdown("### Data Quality Check")
-st.sidebar.markdown("Discover 4488 Duplicate records")
-st.sidebar.markdown("---")
+
 
 # ---------------------- 数据加载与预处理 ----------------------
 @st.cache_data
