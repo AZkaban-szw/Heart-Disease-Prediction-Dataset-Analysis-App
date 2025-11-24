@@ -78,7 +78,7 @@ LANG_DICT = {
         "target_tip": "2. 目标列名需与代码中 target_col 一致",
         "input_tip": "3. 预测模块需补充所有特征的输入组件",
         "tool_tip": "4. 本App仅用于数据分析演示，非医学工具",
-        "distribution_by": "{feature} 按 {target} 的分布"  # 新增中文标题模板
+        "distribution_by": "{feature} 按 {target} 的分布"
     },
     "en": {
         "app_title": "❤️ Heart Disease Prediction Dataset Analysis App",
@@ -147,7 +147,7 @@ LANG_DICT = {
         "target_tip": "2. Target column name must match 'target_col' in the code",
         "input_tip": "3. Add input components for all features in the prediction module",
         "tool_tip": "4. This App is for data analysis only, not a medical tool",
-        "distribution_by": "Distribution of {feature} by {target}"  # 新增英文标题模板
+        "distribution_by": "Distribution of {feature} by {target}"
     }
 }
 
@@ -157,15 +157,39 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
 st.sidebar.header("🌐 Language / 语言")
 lang = st.sidebar.radio("Select Language", ["中文", "English"], index=0)
 lang_code = "zh" if lang == "中文" else "en"
 text = LANG_DICT[lang_code]
 
+# ---------------------- 侧边栏添加Logo和相关信息（新增）----------------------
+st.sidebar.markdown("---")
+# 双Logo并排显示
+col_logo1, col_logo2 = st.sidebar.columns(2)
+with col_logo1:
+    st.image("WUT-Logo.png", use_column_width=True)  # 武汉理工大学Logo
+with col_logo2:
+    st.image("efrei-logo.png", use_column_width=True)  # EFREI Logo
+
+# 新增信息展示（完全匹配图四）
+st.sidebar.markdown("### GitHub URL")
+st.sidebar.markdown("[https://github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App](https://github.com/AZkaban-szw/Heart-Disease-Prediction-Dataset-Analysis-App)")
+
+st.sidebar.markdown("### Course")
+st.sidebar.markdown("Data Visualization 2025")
+
+st.sidebar.markdown("### Prof")
+st.sidebar.markdown("Mano Mathew")
+
+st.sidebar.markdown("### Data Quality Check")
+st.sidebar.markdown("Discover 4488 Duplicate records")
+st.sidebar.markdown("---")
+
 # ---------------------- 数据加载与预处理 ----------------------
 @st.cache_data
 def load_data(lang_code):
-    dataset_path = "synthetic_heart_disease_dataset.csv"  # 替换为你的数据集路径
+    dataset_path = "synthetic_heart_disease_dataset.csv"
     try:
         df = pd.read_csv(dataset_path)
     except FileNotFoundError:
@@ -173,9 +197,7 @@ def load_data(lang_code):
         st.error(f"{err_msg} Please ensure '{dataset_path}' is in the same folder.")
         st.stop()
     
-    target_col = "Heart_Disease"  # 确保与你的数据集目标列一致
-    
-    # 修复目标变量双语映射（关键修复点）
+    target_col = "Heart_Disease"
     target_col_bilingual = {
         "zh": "心脏病状态",
         "en": "Heart Disease"
@@ -187,14 +209,12 @@ def load_data(lang_code):
     
     return df, target_col, target_col_bilingual
 
-# 关键修复：将 lang_code 作为参数传递给 load_data
 df, target_col, target_col_bilingual = load_data(lang_code)
 
 def preprocess_data(df, target_col, lang_code):
     X = df.drop(target_col, axis=1)
     y = df[target_col]
     
-    # 识别分类特征
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     yes_no_cols = []
     for col in X.columns:
@@ -205,7 +225,6 @@ def preprocess_data(df, target_col, lang_code):
     cat_cols = list(set(cat_cols + yes_no_cols))
     num_cols = [col for col in X.columns if col not in cat_cols]
     
-    # 特征名双语映射（完善映射关系）
     feat_name_bilingual = {
         "Age": {"zh": "年龄", "en": "Age"},
         "Gender": {"zh": "性别", "en": "Gender"},
@@ -229,19 +248,16 @@ def preprocess_data(df, target_col, lang_code):
         "Stress_Level": {"zh": "压力水平", "en": "Stress Level"}
     }
     
-    # 补充未匹配的特征名
     for col in X.columns:
         if col not in feat_name_bilingual:
             feat_name_bilingual[col] = {"zh": col, "en": col}
     
-    # 保存分类特征取值
     cat_feat_values = {}
     for col in cat_cols:
         unique_vals = df[col].unique()
         unique_vals = [str(val) if pd.isna(val) else val for val in unique_vals]
         cat_feat_values[col] = unique_vals
     
-    # 编码分类特征
     le_dict = {}
     for col in cat_cols:
         le = LabelEncoder()
@@ -249,7 +265,6 @@ def preprocess_data(df, target_col, lang_code):
         le.fit(df_col)
         le_dict[col] = le
     
-    # 编码目标变量
     if y.dtype == "object" or y.dtype == "category":
         le_y = LabelEncoder()
         y = le_y.fit_transform(y)
@@ -257,10 +272,8 @@ def preprocess_data(df, target_col, lang_code):
     
     return X, y, cat_cols, num_cols, cat_feat_values, le_dict, feat_name_bilingual
 
-# 数据预处理
 X, y, cat_cols, num_cols, cat_feat_values, le_dict, feat_name_bilingual = preprocess_data(df, target_col, lang_code)
 
-# 数据分割
 X_train, X_test, y_train, y_test = train_test_split(
     X, y, test_size=0.2, random_state=42, stratify=y
 )
@@ -296,7 +309,6 @@ def encode_data(data, cat_cols, num_cols, le_dict):
     
     return data_encoded
 
-# 对训练集和测试集编码
 X_train_encoded = encode_data(X_train, cat_cols, num_cols, le_dict)
 X_test_encoded = encode_data(X_test, cat_cols, num_cols, le_dict)
 
@@ -342,7 +354,6 @@ if option == text["modules"][0]:
         target_count = df[target_col].value_counts()
         fig, ax = plt.subplots(figsize=(8, 4))
         
-        # 字体配置
         if lang_code == "zh":
             plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
             plt.rcParams["axes.unicode_minus"] = False
@@ -362,7 +373,6 @@ elif option == text["modules"][1]:
     st.header(text["eda_title"])
     eda_type = st.selectbox("Select EDA Type", text["eda_types"])
     
-    # 字体配置
     if lang_code == "zh":
         plt.rcParams["font.family"] = ["SimHei", "WenQuanYi Micro Hei", "Heiti TC"]
         plt.rcParams["axes.unicode_minus"] = False
@@ -413,24 +423,22 @@ elif option == text["modules"][1]:
         else:
             st.info("当前数据集无数值特征，无法生成相关性热力图" if lang_code == "zh" else "No numerical features in the dataset, cannot generate correlation heatmap")
     
-    # 3. 特征与目标变量关联（核心修复部分）
+    # 3. 特征与目标变量关联
     elif eda_type == text["eda_types"][2]:
         st.subheader(text["target_corr"])
         selected_feat = st.selectbox(text["select_feat"], X.columns)
         feat_name = feat_name_bilingual[selected_feat][lang_code]
-        target_name = target_col_bilingual  # 使用正确的目标变量名称
+        target_name = target_col_bilingual
         
         fig, ax = plt.subplots(figsize=(8, 4))
         if selected_feat in cat_cols:
             sns.countplot(x=selected_feat, hue=target_col, data=df, ax=ax, palette="Set1", edgecolor="black")
-            # 使用语言模板生成标题（关键修复）
             ax.set_title(text["distribution_by"].format(feature=feat_name, target=target_name), fontsize=12)
             ax.set_xlabel(feat_name, fontsize=10)
             ax.set_ylabel("数量" if lang_code == "zh" else "Count", fontsize=10)
             ax.legend(title=target_name, labels=["无" if lang_code == "zh" else "No", "有" if lang_code == "zh" else "Yes"])
         else:
             sns.boxplot(x=target_col, y=selected_feat, data=df, ax=ax, palette="Set1", medianprops={"color": "black"})
-            # 使用语言模板生成标题（关键修复）
             ax.set_title(text["distribution_by"].format(feature=feat_name, target=target_name), fontsize=12)
             ax.set_xlabel(target_name, fontsize=10)
             ax.set_ylabel(feat_name, fontsize=10)
@@ -440,7 +448,7 @@ elif option == text["modules"][1]:
         plt.tight_layout()
         st.pyplot(fig)
     
-    # 4. 散点图分析（修复颜色显示问题）
+    # 4. 散点图分析
     elif eda_type == text["eda_types"][3]:
         st.subheader(text["scatter_title"])
         if len(num_cols) >= 2:
@@ -450,8 +458,6 @@ elif option == text["modules"][1]:
             feat2_name = feat_name_bilingual[feat2][lang_code]
             
             fig, ax = plt.subplots(figsize=(10, 6))
-            
-            # 修复：使用hue参数简化颜色映射
             scatter = sns.scatterplot(
                 x=feat1, 
                 y=feat2, 
@@ -463,7 +469,6 @@ elif option == text["modules"][1]:
                 alpha=0.7
             )
             
-            # 添加回归线（使用全部数据）
             sns.regplot(
                 x=feat1, 
                 y=feat2, 
@@ -474,7 +479,6 @@ elif option == text["modules"][1]:
                 line_kws={"linestyle": "--", "alpha": 0.7}
             )
             
-            # 设置标题和标签
             if lang_code == "zh":
                 title = f"{feat1_name} 与 {feat2_name} 的散点图（按 {target_col_bilingual} 分组）"
                 legend_labels = ["无心脏病", "有心脏病"]
@@ -486,7 +490,6 @@ elif option == text["modules"][1]:
             ax.set_xlabel(feat1_name, fontsize=10)
             ax.set_ylabel(feat2_name, fontsize=10)
             
-            # 修复图例标签
             handles, _ = scatter.get_legend_handles_labels()
             ax.legend(handles, legend_labels, title=target_col_bilingual)
             
